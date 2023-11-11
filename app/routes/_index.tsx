@@ -21,71 +21,27 @@ export const EDGEDB_AUTH_BASE_URL =
 
 export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const session = await getSession(request.headers.get("Cookie"));
-  console.log("session.get(challenge) -> ", session.has("challenge"));
-  const challenge = initiatePKCE(session)
+  const has_user_auth_token = session.has("edgedb-auth-token");
 
-
-  const redirectUrl = new URL("signin", EDGEDB_AUTH_BASE_URL);
-
-  const email = "test@test.es";
-  const password = "testtest";
-  const provider = "Email + Password";
-
-  console.log(redirectUrl.href);
-  const response = await fetch(redirectUrl.href, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      email,
-      password,
-      verify_url: "/signup",
-      provider,
-      challenge,
-    }),
-  });
-
-  console.log(response);
-  console.log(await response.json());
-  if (!response.ok) {
-    throw new Error("Oh no!");
+  if (!has_user_auth_token) {
+    return redirect("/auth/ui/signup");
   }
 
-  const { code } = await response.json();
-
-  console.log("CODE -> ", code);
-
-  // redirectUrl.searchParams.set("challenge", challenge);
+  // estamos presuponiendo que el token es valido. En la primera consulta que veamos que el token no es valido,
+  // quitar el token de la sesion y redirigir al usuario a /signin
 
   // return redirect(redirectUrl.href);
-  return json({
-    code,
-  });
+  return json({ user_token: session.get("edgedb-auth-token") });
 };
 
-export async function action({ request }: ActionFunctionArgs) {
-  const session = await getSession(request.headers.get("Cookie"));
-
-  session.set("challenge", "klsjadfasdlfjl");
-  console.log(JSON.stringify(session.get("challenge")));
-
-  // Login succeeded, send them to the home page.
-  return redirect("/signing", {
-    headers: {
-      "Set-Cookie": await commitSession(session),
-    },
-  });
-}
-
 export default function Index() {
-  const { code } = useLoaderData<typeof loader>();
+  const { user_token } = useLoaderData<typeof loader>();
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.8" }}>
       <h1>Welcome to Remix</h1>
-      <h2>{code ?? "no hay code"}</h2>
-      <form method="POST" action="/?index">
-        <button type="submit">AQui</button>
-      </form>
+      <p> Bienvenido, estas logueado!!</p>
+      <p>Tu token es {user_token} </p>
     </div>
   );
 }
@@ -100,5 +56,5 @@ function initiatePKCE(session: Session) {
     .update(verifier)
     .digest("base64url");
 
-  return challenge
+  return { verifier, challenge };
 }
